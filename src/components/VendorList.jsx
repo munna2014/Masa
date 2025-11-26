@@ -1,14 +1,78 @@
-import React, { useState } from 'react';
-import { MapPin, Phone, Users, Calendar, ChevronDown, ChevronUp, ArrowLeft, Search, Mail, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Phone, Users, Calendar, ChevronDown, ChevronUp, ArrowLeft, Search, Mail, Star, Plus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { vendorsAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 function VendorList() {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [expandedVendor, setExpandedVendor] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [vendors, setVendors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    location: '',
+    contact: '',
+    status: 'active'
+  });
+  const [submitting, setSubmitting] = useState(false);
 
-  // Sample vendor data
-  const vendors = [
+  // Check if user is admin, redirect if not
+  useEffect(() => {
+    if (!isAdmin()) {
+      alert('Access denied. Only admins can view the vendor list.');
+      navigate('/profile');
+    }
+  }, [isAdmin, navigate]);
+
+  // Fetch vendors from API
+  useEffect(() => {
+    if (isAdmin()) {
+      fetchVendors();
+    }
+  }, [isAdmin]);
+
+  const fetchVendors = async () => {
+    try {
+      setLoading(true);
+      const data = await vendorsAPI.getAll();
+      setVendors(data || []);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddVendor = async (e) => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      await vendorsAPI.create(formData);
+      // Refresh vendor list
+      await fetchVendors();
+      // Reset form and close modal
+      setFormData({ name: '', location: '', contact: '', status: 'active' });
+      setShowAddModal(false);
+      alert('Vendor added successfully!');
+    } catch (error) {
+      console.error('Error adding vendor:', error);
+      alert('Failed to add vendor. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Sample vendor data for fallback
+  const sampleVendors = [
     {
       id: 1,
       name: 'Sultan Dines Restaurant',
@@ -82,11 +146,25 @@ function VendorList() {
     }
   ];
 
-  const filteredVendors = vendors.filter(vendor => 
+  // Use real vendors if available, otherwise use sample data
+  const vendorsToDisplay = vendors.length > 0 ? vendors : sampleVendors;
+
+  const filteredVendors = vendorsToDisplay.filter(vendor => 
     vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     vendor.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
     vendor.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading vendors...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black-50">
@@ -104,6 +182,13 @@ function VendorList() {
               </button>
               <h1 className="text-2xl font-bold text-black">Vendor List</h1>
             </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Vendor
+            </button>
           </div>
         </div>
       </header>
@@ -143,7 +228,9 @@ function VendorList() {
                   </div>
                   <div className="text-left flex-1">
                     <h3 className="text-xl font-bold text-black-600 mb-2">{vendor.name}</h3>
-                    <p className="text-black-600 text-sm mb-3">{vendor.description}</p>
+                    {vendor.description && (
+                      <p className="text-black-600 text-sm mb-3">{vendor.description}</p>
+                    )}
                     <div className="flex flex-col sm:flex-row gap-4 text-sm text-black-600">
                       <div className="flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-white " />
@@ -151,23 +238,36 @@ function VendorList() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Phone className="w-4 h-4 text-green-600 " />
-                        <span>{vendor.phone}</span>
+                        <span>{vendor.contact || vendor.phone}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-purple-600 " />
-                        <span>{vendor.email}</span>
-                      </div>
+                      {vendor.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-purple-600 " />
+                          <span>{vendor.email}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 mt-3">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 text-yellow-500 fill-current " />
-                        <span className="text-sm font-semibold text-black">{vendor.rating}</span>
-                        <span className="text-sm text-black-600">({vendor.totalStaff} staff)</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-blue-600 " />
-                        <span className="text-sm text-black-600">{vendor.requirements.length} active requirements</span>
-                      </div>
+                      {vendor.rating && (
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4 text-yellow-500 fill-current " />
+                          <span className="text-sm font-semibold text-black">{vendor.rating}</span>
+                          {vendor.totalStaff && (
+                            <span className="text-sm text-black-600">({vendor.totalStaff} staff)</span>
+                          )}
+                        </div>
+                      )}
+                      {vendor.requirements && vendor.requirements.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-blue-600 " />
+                          <span className="text-sm text-black-600">{vendor.requirements.length} active requirements</span>
+                        </div>
+                      )}
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        vendor.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {vendor.status || 'active'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -183,9 +283,11 @@ function VendorList() {
               {/* Expanded Details */}
               {expandedVendor === vendor.id && (
                 <div className="border-t border-black-200 p-6 bg-black-50">
-                  <h4 className="text-lg font-semibold text-black mb-4">Staffing Requirements</h4>
-                  <div className="space-y-3">
-                    {vendor.requirements.map((req, index) => (
+                  {vendor.requirements && vendor.requirements.length > 0 ? (
+                    <>
+                      <h4 className="text-lg font-semibold text-black mb-4">Staffing Requirements</h4>
+                      <div className="space-y-3">
+                        {vendor.requirements.map((req, index) => (
                       <div key={index} className="bg-white border border-black-200 rounded-lg p-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex-1">
@@ -214,6 +316,13 @@ function VendorList() {
                       </div>
                     ))}
                   </div>
+                </>
+              ) : (
+                    <div className="text-center py-8">
+                      <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600">No staffing requirements yet</p>
+                    </div>
+                  )}
                   
                   <div className="mt-6 flex gap-4">
                     <button className="flex-1 bg-black text-white px-4 py-2 rounded-lg font-semibold transition-colors">
@@ -240,6 +349,105 @@ function VendorList() {
           </div>
         )}
       </div>
+
+      {/* Add Vendor Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">Add New Vendor</h2>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleAddVendor} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Vendor Name *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="e.g., Grand Hotel"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Location *
+                </label>
+                <input
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="e.g., Downtown District, Kuala Lumpur"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Contact Number *
+                </label>
+                <input
+                  type="text"
+                  name="contact"
+                  value={formData.contact}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="e.g., +60 3-1234 5678"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Status
+                </label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Adding...' : 'Add Vendor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

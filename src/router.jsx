@@ -13,9 +13,23 @@ import ProfileSetting from './components/ProfileSetting';
 import SupportHelp from './components/SupportHelp';
 import StaffAssignment from './components/StaffAssignment';
 import VendorList from './components/VendorList';
+import ManagerDashboard from './components/ManagerDashboard';
 import { AuthProvider } from './context/AuthContext';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
 import { ThemeProvider } from './context/ThemeContext';
+
+// Manager protected route
+const ManagerProtectedRoute = ({ children }) => {
+  const user = localStorage.getItem('user');
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  const userData = JSON.parse(user);
+  if (userData.role !== 'manager') {
+    return <Navigate to="/home" replace />;
+  }
+  return children;
+};
 
 // Home wrapper component to provide navigation
 const HomeWithNavigation = () => {
@@ -234,6 +248,18 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/staff',
+    element: (
+      <ThemeProvider>
+        <AuthProvider>
+          <AdminProtectedRoute>
+            <App activeTab="staff" />
+          </AdminProtectedRoute>
+        </AuthProvider>
+      </ThemeProvider>
+    ),
+  },
+  {
     path: '/schedule',
     element: (
       <AuthProvider>
@@ -263,6 +289,18 @@ export const router = createBrowserRouter([
           <App />
         </ProtectedRoute>
       </AuthProvider>
+    ),
+  },
+  {
+    path: '/manager-dashboard',
+    element: (
+      <ThemeProvider>
+        <AuthProvider>
+          <ManagerProtectedRoute>
+            <ManagerDashboard />
+          </ManagerProtectedRoute>
+        </AuthProvider>
+      </ThemeProvider>
     ),
   }
 ]);

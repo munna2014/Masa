@@ -1,31 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import { useLoaderData, useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
-  ChevronLeft, ChevronRight, Edit2, Save, X, Mail, Phone, Briefcase, CheckCircle, AlertCircle,
-  TrendingUp, CalendarDays, ArrowRight, Activity, Bell, Clock, MapPin
+  ChevronLeft, ChevronRight, CalendarDays, Clock, MapPin, Briefcase, Store
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { assignmentsAPI } from '../services/api';
 
 function StaffProfile({ staff: propStaff, onBack, onUpdate }) {
   const navigate = useNavigate();
-  const { user: staff } = useAuth(); // Use user data from AuthContext
+  const { user: staff } = useAuth();
   
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(today.getDate());
-  const [activeView, setActiveView] = useState('month');
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
-  const [scheduledShifts, setScheduledShifts] = useState(staff?.scheduledShifts || []);
-  const [shiftRequests, setShiftRequests] = useState(staff?.shiftRequests || []);
-  const upcomingShifts = staff?.upcomingShifts || [];
-  const announcements = staff?.announcements || [];
+  const [myAssignments, setMyAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch staff's assignments from database
   useEffect(() => {
-    if (staff) {
-      setScheduledShifts(staff.scheduledShifts || []);
-      setShiftRequests(staff.shiftRequests || []);
+    const fetchMyAssignments = async () => {
+      try {
+        setLoading(true);
+        const allAssignments = await assignmentsAPI.getAll();
+        // Filter assignments for current user
+        const myShifts = (allAssignments || []).filter(
+          a => a.staffId === staff?.id
+        );
+        setMyAssignments(myShifts);
+      } catch (error) {
+        console.error('Failed to fetch assignments:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (staff?.id) {
+      fetchMyAssignments();
     }
-  }, [staff]);
+  }, [staff?.id]);
+
+  // Convert assignments to calendar format
+  const scheduledShifts = myAssignments.map(a => {
+    const date = new Date(a.date);
+    return {
+      day: date.getDate(),
+      month: date.getMonth(),
+      year: date.getFullYear(),
+      time: `${a.startTime} - ${a.endTime}`,
+      location: a.vendorName,
+      type: a.role,
+      status: a.status,
+      id: a.id
+    };
+  });
 
 
   const handleBack = () => {
@@ -34,33 +62,6 @@ function StaffProfile({ staff: propStaff, onBack, onUpdate }) {
     } else {
       navigate('/staff');
     }
-  };
-
-  const handleAgreeToShift = (requestId) => {
-    const request = shiftRequests.find(r => r.id === requestId);
-    if (!request) return;
-
-    // For simplicity, parsing 'Dec 20-22' into [20, 21, 22]
-    const datePart = request.date.replace('Dec ', '');
-    const newShifts = [];
-    if (datePart.includes('-')) {
-      const [start, end] = datePart.split('-').map(Number);
-      for (let i = start; i <= end; i++) {
-        newShifts.push({ day: i, time: request.time, location: request.location, type: 'Agreed Shift' });
-      }
-    } else {
-      newShifts.push({ day: Number(datePart), time: request.time, location: request.location, type: 'Agreed Shift' });
-    }
-
-    // Add new shifts if they don't exist
-    setScheduledShifts(prevShifts => {
-      const existingDays = new Set(prevShifts.map(s => s.day));
-      const uniqueNewShifts = newShifts.filter(s => !existingDays.has(s.day));
-      return [...prevShifts, ...uniqueNewShifts];
-    });
-
-    // Remove the request from the list
-    setShiftRequests(prevRequests => prevRequests.filter(r => r.id !== requestId));
   };
 
   // Enhanced calendar generation
@@ -106,7 +107,9 @@ function StaffProfile({ staff: propStaff, onBack, onUpdate }) {
   const realCurrentDay = today.getDate();
   const isCurrentMonthAndYear = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
 
-  const selectedShift = scheduledShifts.find(shift => shift.day === selectedDate);
+  const selectedShift = scheduledShifts.find(
+    shift => shift.day === selectedDate && shift.month === currentMonth && shift.year === currentYear
+  );
 
   const calendarDays = generateCalendarDays();
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -114,23 +117,37 @@ function StaffProfile({ staff: propStaff, onBack, onUpdate }) {
   return (
     <div className="flex">
             <div className="flex-1 p-8 overflow-auto">
-              {/* Enhanced Upcoming Shifts */}
+              {/* Upcoming Shifts from Database */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold text-gray-900">Upcoming Shifts</h2>
-                  <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">View All →</button>
+                  <span className="text-sm text-gray-500">{myAssignments.filter(a => a.status === 'scheduled').length} scheduled</span>
                 </div>
-                <div className="grid grid-cols-7 gap-3">
-                  {upcomingShifts.map((shift, index) => (
-                    <div key={index} className="group">
-                      <div className={`bg-gradient-to-br ${shift.color} rounded-2xl p-4 text-center text-white shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl`}>
-                        <div className="text-sm font-bold mb-2">{shift.day}</div>
-                        <div className="text-xs mb-1 opacity-90">{shift.type}</div>
-                        <div className="text-sm font-semibold">{shift.time}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {myAssignments.filter(a => a.status === 'scheduled').length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {myAssignments
+                      .filter(a => a.status === 'scheduled')
+                      .slice(0, 6)
+                      .map((shift) => (
+                        <div key={shift.id} className="group">
+                          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-4 text-white shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl">
+                            <div className="text-sm font-bold mb-2">{shift.date}</div>
+                            <div className="text-xs mb-1 opacity-90">{shift.role}</div>
+                            <div className="text-sm font-semibold">{shift.startTime} - {shift.endTime}</div>
+                            <div className="text-xs mt-2 opacity-80 flex items-center gap-1">
+                              <Store className="w-3 h-3" />
+                              {shift.vendorName}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-xl p-6 text-center">
+                    <CalendarDays className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500">No upcoming shifts</p>
+                  </div>
+                )}
               </div>
 
               {/* Enhanced Current Schedule */}
@@ -194,7 +211,9 @@ function StaffProfile({ staff: propStaff, onBack, onUpdate }) {
                         
                         const isSelected = day === selectedDate;
                         const isToday = isCurrentMonthAndYear && day === realCurrentDay;
-                        const hasShift = scheduledShifts.some(shift => shift.day === day);
+                        const hasShift = scheduledShifts.some(
+                          shift => shift.day === day && shift.month === currentMonth && shift.year === currentYear
+                        );
                         const isOff = [4, 11, 18, 25].includes(day);
                         
                         return (
@@ -244,79 +263,53 @@ function StaffProfile({ staff: propStaff, onBack, onUpdate }) {
               </div>
             </div>
 
-            {/* Enhanced Right Sidebar */}
+            {/* Right Sidebar - My Shifts */}
             <div className="w-96 bg-white border-l border-gray-100 p-6">
-              {/* Enhanced Announcements */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-gray-900">Announcements</h3>
-                  <Bell className="w-5 h-5 text-gray-400" />
+                  <h3 className="text-xl font-bold text-gray-900">My Shifts</h3>
+                  <Briefcase className="w-5 h-5 text-blue-500" />
                 </div>
-                <div className="space-y-4">
-                  {announcements.map((announcement) => (
-                    <div key={announcement.id} className="group hover:bg-gray-50 rounded-xl p-4 transition-all duration-200 cursor-pointer">
-                      <div className="flex gap-4">
-                        <div className="relative">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
-                            {announcement.avatar}
+                
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500">Loading shifts...</div>
+                ) : myAssignments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CalendarDays className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">No shifts assigned yet</p>
+                    <p className="text-sm text-gray-400">Your assigned shifts will appear here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                    {myAssignments.map((shift) => (
+                      <div key={shift.id} className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <span className="font-bold text-gray-900">{shift.date}</span>
+                            <div className="text-xs text-gray-500 mt-1">{shift.role}</div>
                           </div>
-                          {announcement.priority === 'high' && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
-                          )}
+                          <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                            shift.status === 'checked-in' ? 'bg-green-100 text-green-800' :
+                            shift.status === 'checked-out' ? 'bg-gray-100 text-gray-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {shift.status}
+                          </span>
                         </div>
-                        <div className="flex-1">
-                          <div className="font-semibold text-gray-900 text-sm mb-1">{announcement.title}</div>
-                          <div className="text-xs text-gray-600 mb-2">{announcement.message}</div>
-                          <div className="text-xs text-gray-400">{announcement.time}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Enhanced Shift Change Requests */}
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-gray-900">Shift Requests</h3>
-                  {shiftRequests.length > 0 && (
-                    <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-medium">{shiftRequests.length} New</span>
-                  )}
-                </div>
-                <div className="space-y-4">
-                  {shiftRequests.map((request) => (
-                    <div key={request.id} className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <span className="font-bold text-gray-900 text-lg">{request.date}</span>
-                          <div className="text-xs text-gray-500 mt-1">Requested by {request.requester}</div>
-                        </div>
-                        <span className="bg-yellow-100 text-yellow-800 text-xs px-3 py-1 rounded-full font-medium">Pending</span>
-                      </div>
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Clock className="w-4 h-4 mr-2 text-blue-500" />
-                          {request.time}
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <MapPin className="w-4 h-4 mr-2 text-blue-500" />
-                          {request.location}
+                        <div className="space-y-2">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Clock className="w-4 h-4 mr-2 text-blue-500" />
+                            {shift.startTime} - {shift.endTime}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Store className="w-4 h-4 mr-2 text-blue-500" />
+                            {shift.vendorName}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-3">
-                        <button className="flex-1 py-2 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md">
-                          Refuse
-                        </button>
-                        <button
-                          onClick={() => handleAgreeToShift(request.id)}
-                          className="flex-1 py-2 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-semibold rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md"
-                        >
-                          Agree
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
     </div>

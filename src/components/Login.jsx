@@ -44,15 +44,21 @@ const Login = () => {
     setIsLoading(true);
     setError('');
 
-    const result = login(formData.username, formData.password);
+    console.log('Submitting login with:', formData);
+    const result = await login(formData.username, formData.password);
+    console.log('Login result:', result);
     
     if (result.success && result.user) {
+      console.log('Login successful, navigating...');
       if (result.user.role === 'admin') {
         navigate('/profile');
+      } else if (result.user.role === 'manager') {
+        navigate('/manager-dashboard');
       } else {
         navigate('/staff-profile');
       }
     } else {
+      console.log('Login failed:', result.error);
       setError(result.error || 'Login failed');
     }
     

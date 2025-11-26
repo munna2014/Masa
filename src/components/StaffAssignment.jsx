@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Trash2, Edit2, Plus, X, ArrowLeft, Search, Filter, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { staffAPI, vendorsAPI, assignmentsAPI } from '../services/api';
 
 function StaffAssignment() {
   const navigate = useNavigate();
@@ -8,113 +9,147 @@ function StaffAssignment() {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [searchStaff, setSearchStaff] = useState('');
   const [searchVendor, setSearchVendor] = useState('');
-  const [assignments, setAssignments] = useState([
-    {
-      id: 1,
-      staffName: 'John Smith',
-      staffRole: 'Waiter',
-      vendorName: 'Sultan Dines Restaurant',
-      date: '2024-01-15',
-      startTime: '08:00',
-      endTime: '16:00',
-      status: 'confirmed'
-    },
-    {
-      id: 2,
-      staffName: 'Sarah Johnson',
-      staffRole: 'Chef',
-      vendorName: 'Sultan Dines Restaurant',
-      date: '2024-01-15',
-      startTime: '16:00',
-      endTime: '00:00',
-      status: 'pending'
+  const [assignments, setAssignments] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [vendorList, setVendorList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [assignmentDate, setAssignmentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('17:00');
+  const [role, setRole] = useState('');
+
+  // Fetch all data from database
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      const [staffData, vendorData, assignmentData] = await Promise.all([
+        staffAPI.getAll(),
+        vendorsAPI.getAll(),
+        assignmentsAPI.getAll()
+      ]);
+      setStaffList(staffData || []);
+      setVendorList(vendorData || []);
+      setAssignments(assignmentData || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  // Sample staff data
-  const staffList = [
-    { id: 1, name: 'John Smith', role: 'Waiter', status: 'available', phone: '+60 12-345 6789', rating: 4.5 },
-    { id: 2, name: 'Sarah Johnson', role: 'Chef', status: 'available', phone: '+60 12-456 7890', rating: 4.8 },
-    { id: 3, name: 'Mike Wilson', role: 'Security', status: 'on-assignment', phone: '+60 12-567 8901', rating: 4.2 },
-    { id: 4, name: 'Emily Davis', role: 'Event Staff', status: 'available', phone: '+60 12-678 9012', rating: 4.6 },
-    { id: 5, name: 'Robert Brown', role: 'Kitchen Staff', status: 'available', phone: '+60 12-789 0123', rating: 4.3 }
-  ];
+  // Check if staff is available for selected date/time
+  const isStaffAvailable = (staff) => {
+    if (!staff.assignedDates || staff.assignedDates.length === 0) return true;
+    
+    return !staff.assignedDates.some(assignment => {
+      if (assignment.date !== assignmentDate) return false;
+      // Check time overlap
+      const assignStart = assignment.startTime;
+      const assignEnd = assignment.endTime;
+      const newStart = startTime + ':00';
+      const newEnd = endTime + ':00';
+      
+      return (newStart < assignEnd && newEnd > assignStart);
+    });
+  };
 
-  // Sample vendor data
-  const vendorList = [
-    {
-      id: 1,
-      name: 'Sultan Dines Restaurant',
-      location: 'Downtown District',
-      phone: '+60 3-1234 5678',
-      email: 'manager@sultandines.com',
-      requirements: [
-        { date: '2024-01-15', startTime: '08:00', endTime: '16:00', staffNeeded: 3, role: 'Waiter' },
-        { date: '2024-01-15', startTime: '16:00', endTime: '00:00', staffNeeded: 2, role: 'Chef' }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Marriott Convention Center',
-      location: 'Business Park',
-      phone: '+60 3-2345 6789',
-      email: 'events@marriott.com',
-      requirements: [
-        { date: '2024-01-15', startTime: '15:00', endTime: '23:00', staffNeeded: 3, role: 'Security' }
-      ]
-    },
-    {
-      id: 3,
-      name: 'Hilton Garden Inn',
-      location: 'Airport Area',
-      phone: '+60 3-3456 7890',
-      email: 'manager@hilton.com',
-      requirements: [
-        { date: '2024-01-16', startTime: '06:00', endTime: '14:00', staffNeeded: 2, role: 'Kitchen Staff' }
-      ]
+  const filteredStaff = staffList.filter(staff => {
+    const name = (staff.name || staff.username || '').toLowerCase();
+    const skills = (staff.skills || []).join(' ').toLowerCase();
+    const search = searchStaff.toLowerCase();
+    return name.includes(search) || skills.includes(search);
+  });
+
+  const filteredVendors = vendorList.filter(vendor => {
+    const name = (vendor.name || '').toLowerCase();
+    const location = (vendor.location || '').toLowerCase();
+    const search = searchVendor.toLowerCase();
+    return name.includes(search) || location.includes(search);
+  });
+
+  const handleCreateAssignment = async () => {
+    if (!selectedStaff || !selectedVendor) {
+      alert('Please select both staff and vendor');
+      return;
     }
-  ];
 
-  const filteredStaff = staffList.filter(staff => 
-    staff.name.toLowerCase().includes(searchStaff.toLowerCase()) ||
-    staff.role.toLowerCase().includes(searchStaff.toLowerCase())
-  );
+    if (!role) {
+      alert('Please enter a role for this assignment');
+      return;
+    }
 
-  const filteredVendors = vendorList.filter(vendor => 
-    vendor.name.toLowerCase().includes(searchVendor.toLowerCase()) ||
-    vendor.location.toLowerCase().includes(searchVendor.toLowerCase())
-  );
-
-  const handleCreateAssignment = () => {
-    if (selectedStaff && selectedVendor) {
+    try {
       const newAssignment = {
-        id: assignments.length + 1,
-        staffName: selectedStaff.name,
-        staffRole: selectedStaff.role,
-        vendorName: selectedVendor.name,
-        date: '2024-01-15',
-        startTime: '09:00',
-        endTime: '17:00',
-        status: 'pending'
+        vendor_id: selectedVendor.id,
+        user_id: selectedStaff.id,
+        date: assignmentDate,
+        start_time: startTime + ':00',
+        end_time: endTime + ':00',
+        role: role,
+        status: 'scheduled'
       };
-      setAssignments([...assignments, newAssignment]);
+
+      console.log('Creating assignment with data:', newAssignment);
+      
+      const result = await assignmentsAPI.create(newAssignment);
+      console.log('Assignment created:', result);
+      
+      await fetchAllData(); // Refresh all data
+      
+      // Reset form
       setSelectedStaff(null);
       setSelectedVendor(null);
+      setRole('');
+      setAssignmentDate(new Date().toISOString().split('T')[0]);
+      setStartTime('09:00');
+      setEndTime('17:00');
+      
       alert('Assignment created successfully!');
-    } else {
-      alert('Please select both staff and vendor');
+    } catch (error) {
+      console.error('Error creating assignment:', error);
+      console.error('Error details:', error.response || error.message);
+      alert(`Failed to create assignment: ${error.message || 'Please try again.'}`);
     }
   };
 
-  const handleDeleteAssignment = (assignmentId) => {
-    setAssignments(assignments.filter(a => a.id !== assignmentId));
+  const handleDeleteAssignment = async (assignmentId) => {
+    if (window.confirm('Are you sure you want to delete this assignment?')) {
+      try {
+        await assignmentsAPI.delete(assignmentId);
+        await fetchAllData(); // Refresh data
+        alert('Assignment deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting assignment:', error);
+        alert('Failed to delete assignment. Please try again.');
+      }
+    }
   };
 
-  const handleConfirmAssignment = (assignmentId) => {
-    setAssignments(assignments.map(a => 
-      a.id === assignmentId ? { ...a, status: 'confirmed' } : a
-    ));
+  const handleConfirmAssignment = async (assignmentId) => {
+    try {
+      await assignmentsAPI.update(assignmentId, { status: 'checked-in' });
+      await fetchAllData(); // Refresh data
+      alert('Assignment confirmed successfully!');
+    } catch (error) {
+      console.error('Error confirming assignment:', error);
+      alert('Failed to confirm assignment. Please try again.');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading assignments...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -157,33 +192,50 @@ function StaffAssignment() {
               </div>
               
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {filteredStaff.map((staff) => (
-                  <div
-                    key={staff.id}
-                    onClick={() => setSelectedStaff(staff)}
-                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                      selectedStaff?.id === staff.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h4 className="font-semibold text-black">{staff.name}</h4>
-                        <p className="text-sm text-gray-600">{staff.role}</p>
-                        <p className="text-xs text-gray-500">{staff.phone}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          staff.status === 'available' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {staff.status}
-                        </span>
-                        <p className="text-xs text-gray-500 mt-1">⭐ {staff.rating}</p>
+                {filteredStaff.map((staff) => {
+                  const available = isStaffAvailable(staff);
+                  const assignmentOnDate = staff.assignedDates?.find(a => a.date === assignmentDate);
+                  
+                  return (
+                    <div
+                      key={staff.id}
+                      onClick={() => available && setSelectedStaff(staff)}
+                      className={`p-4 border rounded-lg transition-all ${
+                        !available 
+                          ? 'border-red-200 bg-red-50 cursor-not-allowed opacity-70'
+                          : selectedStaff?.id === staff.id
+                            ? 'border-blue-500 bg-blue-50 cursor-pointer'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-semibold text-black">{staff.name || staff.username}</h4>
+                          <p className="text-sm text-gray-600">
+                            {staff.skills && staff.skills.length > 0 ? staff.skills.join(', ') : 'No skills listed'}
+                          </p>
+                          <p className="text-xs text-gray-500">{staff.phone || 'N/A'}</p>
+                          {assignmentOnDate && (
+                            <p className="text-xs text-red-600 mt-1">
+                              Assigned: {assignmentOnDate.startTime?.slice(0,5)} - {assignmentOnDate.endTime?.slice(0,5)} @ {assignmentOnDate.vendorName}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            !available 
+                              ? 'bg-red-100 text-red-800'
+                              : (staff.staff_status || staff.status) === 'available' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {!available ? 'Unavailable' : (staff.staff_status || staff.status || 'available')}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -215,16 +267,59 @@ function StaffAssignment() {
                     <div>
                       <h4 className="font-semibold text-black">{vendor.name}</h4>
                       <p className="text-sm text-gray-600">{vendor.location}</p>
-                      <p className="text-xs text-gray-500">{vendor.phone}</p>
+                      <p className="text-xs text-gray-500">{vendor.contact || vendor.phone}</p>
                       <div className="mt-2">
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          {vendor.requirements.length} requirements
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          vendor.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {vendor.status || 'active'}
                         </span>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* Assignment Details */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
+              <input
+                type="date"
+                value={assignmentDate}
+                onChange={(e) => setAssignmentDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time *</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">End Time *</label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Role *</label>
+              <input
+                type="text"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="e.g., Waiter, Chef"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
 
@@ -257,46 +352,54 @@ function StaffAssignment() {
                 </tr>
               </thead>
               <tbody>
-                {assignments.map((assignment) => (
-                  <tr key={assignment.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4 text-black">{assignment.staffName}</td>
-                    <td className="py-3 px-4 text-gray-600">{assignment.staffRole}</td>
-                    <td className="py-3 px-4 text-gray-600">{assignment.vendorName}</td>
-                    <td className="py-3 px-4 text-gray-600">{assignment.date}</td>
-                    <td className="py-3 px-4 text-gray-600">
-                      {assignment.startTime} - {assignment.endTime}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        assignment.status === 'confirmed' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {assignment.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
-                        {assignment.status === 'pending' && (
+                {assignments.length > 0 ? (
+                  assignments.map((assignment) => (
+                    <tr key={assignment.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-3 px-4 text-black">{assignment.staffName || 'N/A'}</td>
+                      <td className="py-3 px-4 text-gray-600">{assignment.role || 'N/A'}</td>
+                      <td className="py-3 px-4 text-gray-600">{assignment.vendorName || 'N/A'}</td>
+                      <td className="py-3 px-4 text-gray-600">{assignment.date}</td>
+                      <td className="py-3 px-4 text-gray-600">
+                        {assignment.startTime} - {assignment.endTime}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          assignment.status === 'checked-in' || assignment.status === 'checked-out'
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {assignment.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex gap-2">
+                          {assignment.status === 'scheduled' && (
+                            <button 
+                              onClick={() => handleConfirmAssignment(assignment.id)}
+                              className="text-green-600 hover:text-green-800 transition-colors"
+                              title="Confirm Assignment"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                          )}
                           <button 
-                            onClick={() => handleConfirmAssignment(assignment.id)}
-                            className="text-green-600 hover:text-green-800 transition-colors"
-                            title="Confirm Assignment"
+                            onClick={() => handleDeleteAssignment(assignment.id)}
+                            className="text-red-600 hover:text-red-800 transition-colors"
+                            title="Delete Assignment"
                           >
-                            <Check className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
-                        )}
-                        <button 
-                          onClick={() => handleDeleteAssignment(assignment.id)}
-                          className="text-red-600 hover:text-red-800 transition-colors"
-                          title="Delete Assignment"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" className="py-8 text-center text-gray-500">
+                      No assignments found. Create your first assignment above.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { mockUsers } from '../components/mockData';
+import { authService } from '../services/authService';
 
 const AuthContext = createContext();
 
@@ -16,122 +16,90 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      // Seed initial users to localStorage if not present
-      if (!localStorage.getItem('allUsers')) {
-        localStorage.setItem('allUsers', JSON.stringify(mockUsers));
-      }
-    } catch (error) {
-      console.error('Failed to seed users to localStorage:', error);
-      // Continue without seeding - the login function has fallbacks
-    }
-
-    // Check for existing logged-in user session
     const savedUser = localStorage.getItem('user');
-    if (savedUser && savedUser !== 'undefined') {
+    const token = localStorage.getItem('token');
+    if (savedUser && token) {
       try {
         setUser(JSON.parse(savedUser));
-      } catch (parseError) {
-        console.error('Failed to parse saved user:', parseError);
-        // Clear corrupted data
+      } catch (error) {
+        console.error('Failed to parse saved user:', error);
         localStorage.removeItem('user');
+        localStorage.removeItem('token');
       }
     }
     setIsLoading(false);
   }, []);
-  
-  const getAllUsers = () => {
+
+  const login = async (username, password) => {
     try {
-      const users = localStorage.getItem('allUsers');
-      return users ? JSON.parse(users) : {};
+      console.log('Login attempt:', { username });
+      const response = await authService.login(username, password);
+      console.log('Login response:', response);
+      
+      if (response.success) {
+        setUser(response.data.user);
+        return { success: true, user: response.data.user };
+      }
+      return {
+        success: false,
+        error: response.error?.message || 'Login failed',
+        details: response.error?.details || null,
+      };
     } catch (error) {
-      console.error('Failed to get users from localStorage:', error);
-      return {};
+      // Help debug shape of error coming from API
+      // eslint-disable-next-line no-console
+      console.error('Login error from API:', error);
+      // Axios interceptor rejects with the response data directly
+      const message =
+        error?.error?.message ||
+        error?.message ||
+        'Login failed';
+
+      return {
+        success: false,
+        error: message,
+        details: error?.error?.details || null,
+      };
     }
   };
 
-  const getUserData = (username) => {
-    const allUsers = getAllUsers();
-    return allUsers[username] || allUsers.default;
-  };
-
-  const login = (username, password) => {
-    const allUsers = getAllUsers();
-    const userData = allUsers[username];
-
-    // Add a special, reliable check for the admin user
-    if (username === 'admin' && password === 'admin') {
-      console.log('Admin login attempt - allUsers:', allUsers);
-      console.log('Admin user from allUsers:', allUsers.admin);
-      console.log('Admin user from mockUsers:', mockUsers.admin);
-      
-      // Ensure admin user exists, fallback to mockUsers if needed
-      let adminUser = allUsers.admin || mockUsers.admin;
-      
-      // If still not found, create a default admin user
-      if (!adminUser) {
-        console.log('Creating fallback admin user');
-        adminUser = {
-          id: 'admin',
-          name: 'Admin User',
-          username: 'admin',
-          role: 'admin',
-          email: 'admin@company.com',
-          avatar: 'A'
-        };
+  const register = async (username, email, password, role = 'staff') => {
+    try {
+      const response = await authService.register(username, email, password, role);
+      if (response.success) {
+        setUser(response.data.user);
+        return { success: true, user: response.data.user };
       }
-      
-      console.log('Final admin user:', adminUser);
-      setUser(adminUser);
-      localStorage.setItem('user', JSON.stringify(adminUser));
-      return { success: true, user: adminUser };
-    }
+      return {
+        success: false,
+        error: response.error?.message || 'Registration failed',
+        details: response.error?.details || null,
+      };
+    } catch (error) {
+      // Help debug shape of error coming from API
+      // eslint-disable-next-line no-console
+      console.error('Register error from API:', error);
+      // Axios interceptor rejects with the response data directly
+      const message =
+        error?.error?.message ||
+        error?.message ||
+        'Registration failed';
 
-    // In a real app, you'd verify the password here
-    if (username && password && userData) {
-      setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
-      return { success: true, user: userData };
+      return {
+        success: false,
+        error: message,
+        details: error?.error?.details || null,
+      };
     }
-    
-    // Handle case where user does not exist
-    if (!userData) return { success: false, error: 'User not found.' };
-
-    return { success: false, error: 'Invalid credentials' };
   };
 
-  const register = (username, email, password) => {
-    // Simple registration logic
-    if (username && email && password) {
-      if (username.toLowerCase() === 'admin') {
-        return { success: false, error: 'The username "admin" is reserved.' };
-      }
-
-      const allUsers = getAllUsers();
-      if (allUsers[username]) {
-        return { success: false, error: 'Username is already taken.' };
-      }
-
-      // Create a new user profile by copying the default profile
-      const newUser = { ...allUsers.default };
-      newUser.username = username;
-      newUser.email = email;
-      newUser.role = 'user';
-      newUser.id = username; // Use username as ID
-
-      allUsers[username] = newUser;
-      localStorage.setItem('allUsers', JSON.stringify(allUsers));
-
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      return { success: true, user: newUser };
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
     }
-    return { success: false, error: 'Please fill all fields' };
-  };
-
-  const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
   };
 
   const isAdmin = () => {

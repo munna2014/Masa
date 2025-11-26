@@ -92,13 +92,6 @@ function ProfileLayout({ children, activeView = 'schedule' }) {
                 Home
               </button>
               <button
-                onClick={() => navigate('/vendors')}
-                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 text-gray-600 hover:text-black"
-              >
-                <MapPinIcon className="w-4 h-4" />
-                Vendors
-              </button>
-              <button
                 onClick={() => navigate('/profile')}
                 className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
                   currentActiveView === 'profile'

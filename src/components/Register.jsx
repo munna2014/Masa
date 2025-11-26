@@ -8,7 +8,8 @@ const Register = () => {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'staff'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -47,19 +48,37 @@ const Register = () => {
     setIsLoading(true);
     setError('');
 
-    const result = register(formData.username, formData.email, formData.password);
-    
-    if (result.success && result.user) {
-      if (result.user.role === 'admin') {
-        navigate('/profile');
+    try {
+      const result = await register(
+        formData.username,
+        formData.email,
+        formData.password,
+        formData.role
+      );
+
+      if (result.success && result.user) {
+        if (result.user.role === 'admin') {
+          navigate('/profile');
+        } else if (result.user.role === 'manager') {
+          navigate('/manager-dashboard');
+        } else {
+          navigate('/staff-profile');
+        }
       } else {
-        navigate('/staff-profile');
+        // Prefer backend validation message if available
+        if (result.details) {
+          const emailError = result.details.email?.[0];
+          const usernameError = result.details.username?.[0];
+          const genericError = result.error;
+
+          setError(emailError || usernameError || genericError || 'Registration failed');
+        } else {
+          setError(result.error || 'Registration failed');
+        }
       }
-    } else {
-      setError(result.error || 'Registration failed');
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (
@@ -157,6 +176,50 @@ const Register = () => {
                   placeholder="Enter your email"
                   required
                 />
+              </div>
+
+              {/* Role Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Register as
+                </label>
+                <div className="flex gap-4">
+                  <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border cursor-pointer transition ${
+                    formData.role === 'staff' 
+                      ? 'bg-white/20 border-white/40 text-white' 
+                      : 'bg-white/5 border-white/20 text-gray-400 hover:bg-white/10'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="role"
+                      value="staff"
+                      checked={formData.role === 'staff'}
+                      onChange={handleChange}
+                      className="hidden"
+                    />
+                    <span>Staff</span>
+                  </label>
+                  <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border cursor-pointer transition ${
+                    formData.role === 'manager' 
+                      ? 'bg-purple-500/30 border-purple-400/50 text-white' 
+                      : 'bg-white/5 border-white/20 text-gray-400 hover:bg-white/10'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="role"
+                      value="manager"
+                      checked={formData.role === 'manager'}
+                      onChange={handleChange}
+                      className="hidden"
+                    />
+                    <span>Manager</span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {formData.role === 'manager' 
+                    ? 'Managers can request staff for events' 
+                    : 'Staff can be assigned to work at events'}
+                </p>
               </div>
 
               {/* Password Field */}

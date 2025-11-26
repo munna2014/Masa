@@ -1,188 +1,133 @@
-import React, { useState } from 'react';
-import { BarChart3, Users, Calendar, TrendingUp, Zap, Home, Settings, LogOut, X, Clock, MapPin, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BarChart3, Users, Calendar, TrendingUp, Zap, Home, Settings, LogOut, X, Clock, MapPin, User, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { vendorsAPI, staffAPI, assignmentsAPI, staffApplicationsAPI } from '../services/api';
 
-function Dashboard({ vendors = [], staff = [], assignments = [], onGenerateSchedule = () => {} }) {
+function Dashboard() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, isAdmin } = useAuth();
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [generatedSchedule, setGeneratedSchedule] = useState([]);
-  
-  // Sample vendor data for demonstration
-  const vendorsToUse = vendors.length > 0 ? vendors : [
-    {
-      id: 1,
-      name: 'Sultan Dines Restaurant',
-      location: 'Downtown District',
-      phone: '+60 3-1234 5678',
-      email: 'manager@sultandines.com',
-      requirements: [
-        { date: '2024-01-15', startTime: '08:00', endTime: '16:00', staffNeeded: 3, role: 'Waiter' },
-        { date: '2024-01-15', startTime: '16:00', endTime: '00:00', staffNeeded: 2, role: 'Chef' },
-        { date: '2024-01-16', startTime: '08:00', endTime: '16:00', staffNeeded: 4, role: 'Kitchen Staff' }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Marriott Convention Center',
-      location: 'Business Park',
-      phone: '+60 3-2345 6789',
-      email: 'events@marriott.com',
-      requirements: [
-        { date: '2024-01-15', startTime: '07:00', endTime: '15:00', staffNeeded: 5, role: 'Event Staff' },
-        { date: '2024-01-15', startTime: '15:00', endTime: '23:00', staffNeeded: 3, role: 'Security' },
-        { date: '2024-01-17', startTime: '09:00', endTime: '17:00', staffNeeded: 6, role: 'Event Staff' }
-      ]
-    },
-    {
-      id: 3,
-      name: 'Hilton Garden Inn',
-      location: 'Airport Area',
-      phone: '+60 3-3456 7890',
-      email: 'manager@hilton.com',
-      requirements: [
-        { date: '2024-01-15', startTime: '06:00', endTime: '14:00', staffNeeded: 2, role: 'Kitchen Staff' },
-        { date: '2024-01-16', startTime: '14:00', endTime: '22:00', staffNeeded: 3, role: 'Housekeeping' }
-      ]
-    }
-  ];
-  
-  // Sample staff data
-  const staffToUse = staff.length > 0 ? staff : [
-    { id: 1, name: 'John Smith', role: 'Waiter', status: 'available', phone: '+60 12-345 6789' },
-    { id: 2, name: 'Sarah Johnson', role: 'Chef', status: 'available', phone: '+60 12-456 7890' },
-    { id: 3, name: 'Mike Wilson', role: 'Security', status: 'on-assignment', phone: '+60 12-567 8901' },
-    { id: 4, name: 'Emily Davis', role: 'Event Staff', status: 'available', phone: '+60 12-678 9012' },
-    { id: 5, name: 'Robert Brown', role: 'Kitchen Staff', status: 'available', phone: '+60 12-789 0123' }
-  ];
-  
-  // Sample assignments with check-in/check-out status
-  const assignmentsToUse = assignments.length > 0 ? assignments : [
-    { 
-      id: 1, 
-      staffName: 'John Smith', 
-      vendorName: 'Sultan Dines Restaurant', 
-      date: '2024-01-15', 
-      startTime: '08:00', 
-      endTime: '16:00', 
-      status: 'checked-in',
-      checkInTime: '08:05',
-      checkOutTime: null
-    },
-    { 
-      id: 2, 
-      staffName: 'Sarah Johnson', 
-      vendorName: 'Sultan Dines Restaurant', 
-      date: '2024-01-15', 
-      startTime: '16:00', 
-      endTime: '00:00', 
-      status: 'scheduled',
-      checkInTime: null,
-      checkOutTime: null
-    },
-    { 
-      id: 3, 
-      staffName: 'Mike Wilson', 
-      vendorName: 'Marriott Convention Center', 
-      date: '2024-01-15', 
-      startTime: '15:00', 
-      endTime: '23:00', 
-      status: 'checked-out',
-      checkInTime: '15:02',
-      checkOutTime: '23:15'
-    }
-  ];
-  
-  const totalVendors = vendorsToUse.length;
-  const totalStaff = staffToUse.length;
-  const totalAssignments = assignmentsToUse.length;
-  const completedAssignments = assignmentsToUse.filter((a) => a.status === 'checked-out').length;
+  const [vendors, setVendors] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [vendorsData, staffData, assignmentsData, applicationsData] = await Promise.all([
+          vendorsAPI.getAll(),
+          staffAPI.getAll(),
+          assignmentsAPI.getAll(),
+          staffApplicationsAPI.getAll().catch(() => []),
+        ]);
+        
+        setVendors(vendorsData || []);
+        setStaff(staffData || []);
+        setAssignments(assignmentsData || []);
+        setApplications(Array.isArray(applicationsData) ? applicationsData : []);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const totalStaffNeeded = vendorsToUse.reduce(
-    (sum, v) => sum + (v.requirements || []).reduce((s, r) => s + r.staffNeeded, 0),
-    0
-  );
+    fetchData();
+  }, []);
 
-  const staffUtilization = totalStaff > 0 ? ((totalAssignments / (totalStaff * 5)) * 100).toFixed(1) : 0;
+  const handleApproveApplication = async (id) => {
+    try {
+      await staffApplicationsAPI.approve(id, '');
+      const updated = await staffApplicationsAPI.getAll();
+      setApplications(Array.isArray(updated) ? updated : []);
+    } catch (error) {
+      alert('Failed to approve application');
+    }
+  };
+
+  const handleRejectApplication = async (id) => {
+    try {
+      await staffApplicationsAPI.reject(id, '');
+      const updated = await staffApplicationsAPI.getAll();
+      setApplications(Array.isArray(updated) ? updated : []);
+    } catch (error) {
+      alert('Failed to reject application');
+    }
+  };
+  
+  
+  const totalVendors = vendors.length;
+  const totalStaff = staff.length;
+  const availableStaff = staff.filter(s => s.status === 'available').length;
+  const totalAssignments = assignments.length;
+  const completedAssignments = assignments.filter((a) => a.status === 'checked-out').length;
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const handleGenerateSchedule = () => {
-    // Generate sample schedule data
-    const schedule = [
-      {
-        id: 1,
-        staffName: 'John Smith',
-        vendorName: 'Sultan Dines Restaurant',
-        date: '2024-01-15',
-        startTime: '08:00',
-        endTime: '16:00',
-        role: 'Waiter',
-        location: 'Downtown District',
-        status: 'scheduled'
-      },
-      {
-        id: 2,
-        staffName: 'Sarah Johnson',
-        vendorName: 'Sultan Dines Restaurant',
-        date: '2024-01-15',
-        startTime: '16:00',
-        endTime: '00:00',
-        role: 'Chef',
-        location: 'Downtown District',
-        status: 'scheduled'
-      },
-      {
-        id: 3,
-        staffName: 'Mike Wilson',
-        vendorName: 'Marriott Convention Center',
-        date: '2024-01-15',
-        startTime: '15:00',
-        endTime: '23:00',
-        role: 'Security',
-        location: 'Business Park',
-        status: 'scheduled'
-      },
-      {
-        id: 4,
-        staffName: 'Emily Davis',
-        vendorName: 'Hilton Garden Inn',
-        date: '2024-01-16',
-        startTime: '06:00',
-        endTime: '14:00',
-        role: 'Kitchen Staff',
-        location: 'Airport Area',
-        status: 'scheduled'
-      },
-      {
-        id: 5,
-        staffName: 'Robert Brown',
-        vendorName: 'Marriott Convention Center',
-        date: '2024-01-17',
-        startTime: '09:00',
-        endTime: '17:00',
-        role: 'Event Staff',
-        location: 'Business Park',
-        status: 'scheduled'
+  const handleGenerateSchedule = async () => {
+    try {
+      const result = await assignmentsAPI.generate();
+      
+      if (result.success) {
+        // Refresh assignments
+        const updatedAssignments = await assignmentsAPI.getAll();
+        setAssignments(updatedAssignments);
+        setGeneratedSchedule(updatedAssignments);
+        setShowScheduleModal(true);
+        alert(`Schedule generated successfully! ${result.data.count} assignments created.`);
+      } else {
+        alert('Failed to generate schedule. Please try again.');
       }
-    ];
-    
-    setGeneratedSchedule(schedule);
-    setShowScheduleModal(true);
-    onGenerateSchedule();
+    } catch (error) {
+      console.error('Error generating schedule:', error);
+      alert('Failed to generate schedule. Please try again.');
+    }
   };
 
-  const handleCheckIn = (assignmentId) => {
-    alert(`GPS Time Clock: Staff checked in at ${new Date().toLocaleTimeString()}`);
+  const handleCheckIn = async (assignmentId) => {
+    try {
+      await assignmentsAPI.checkIn(assignmentId);
+      // Refresh assignments
+      const updatedAssignments = await assignmentsAPI.getAll();
+      setAssignments(updatedAssignments);
+      alert(`GPS Time Clock: Staff checked in at ${new Date().toLocaleTimeString()}`);
+    } catch (error) {
+      console.error('Error checking in:', error);
+      alert('Failed to check in. Please try again.');
+    }
   };
 
-  const handleCheckOut = (assignmentId) => {
-    alert(`GPS Time Clock: Staff checked out at ${new Date().toLocaleTimeString()}`);
+  const handleCheckOut = async (assignmentId) => {
+    try {
+      await assignmentsAPI.checkOut(assignmentId);
+      // Refresh assignments
+      const updatedAssignments = await assignmentsAPI.getAll();
+      setAssignments(updatedAssignments);
+      alert(`GPS Time Clock: Staff checked out at ${new Date().toLocaleTimeString()}`);
+    } catch (error) {
+      console.error('Error checking out:', error);
+      alert('Failed to check out. Please try again.');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -207,13 +152,25 @@ function Dashboard({ vendors = [], staff = [], assignments = [], onGenerateSched
                   <Users className="w-4 h-4" />
                   Staff Assignment
                 </button>
-                <button
-                  onClick={() => navigate('/vendors')}
-                  className="flex items-center gap-2 text-gray-600 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all px-3 py-2 rounded-lg"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Vendor List
-                </button>
+
+                {isAdmin() && (
+                  <>
+                    <button
+                      onClick={() => navigate('/staff')}
+                      className="flex items-center gap-2 text-gray-600 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all px-3 py-2 rounded-lg"
+                    >
+                      <Users className="w-4 h-4" />
+                      Staff List
+                    </button>
+                    <button
+                      onClick={() => navigate('/vendors')}
+                      className="flex items-center gap-2 text-gray-600 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all px-3 py-2 rounded-lg"
+                    >
+                      <Calendar className="w-4 h-4" />
+                      Vendor List
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => navigate('/home')}
                   className="flex items-center gap-2 text-gray-600 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all px-3 py-2 rounded-lg"
@@ -273,14 +230,14 @@ function Dashboard({ vendors = [], staff = [], assignments = [], onGenerateSched
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition cursor-pointer" onClick={() => navigate('/staff')}>
             <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-green-100 rounded-lg">
                 <Users className="w-6 h-6 text-green-600" />
               </div>
               <div>
                 <p className="text-gray-600 text-sm">Available Staff</p>
-                <p className="text-2xl font-bold text-black">{staffToUse.filter(s => s.status === 'available').length}</p>
+                <p className="text-2xl font-bold text-black">{availableStaff} / {totalStaff}</p>
               </div>
             </div>
           </div>
@@ -316,30 +273,39 @@ function Dashboard({ vendors = [], staff = [], assignments = [], onGenerateSched
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <h3 className="text-xl font-bold text-black mb-4">Vendor Management</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {vendorsToUse.map((vendor) => (
-                <div key={vendor.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="font-semibold text-black-600 hover:text-white transition-colors">{vendor.name}</h4>
-                      <p className="text-black-600 text-sm hover:text-white transition-colors">{vendor.location}</p>
-                      <p className="text-black-500 text-xs hover:text-white transition-colors">{vendor.phone} • {vendor.email}</p>
-                    </div>
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                      {vendor.requirements.length} shifts
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {vendor.requirements.map((req, idx) => (
-                      <div key={idx} className="text-sm text-gray-600 flex justify-between bg-white p-2 rounded hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-colors">
-                        <span className="hover:text-white transition-colors">
-                          {req.date} • {req.startTime}-{req.endTime}
+              {vendors.length > 0 ? (
+                vendors.map((vendor) => {
+                  const vendorAssignments = assignments.filter(a => a.vendorId === vendor.id);
+                  return (
+                    <div key={vendor.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-semibold text-black-600 hover:text-white transition-colors">{vendor.name}</h4>
+                          <p className="text-black-600 text-sm hover:text-white transition-colors">{vendor.location}</p>
+                          <p className="text-black-500 text-xs hover:text-white transition-colors">{vendor.contact}</p>
+                        </div>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          {vendorAssignments.length} assignments
                         </span>
-                        <span className="text-blue-600 font-medium hover:text-white transition-colors">{req.staffNeeded} {req.role}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                      {vendorAssignments.length > 0 && (
+                        <div className="space-y-1 mt-2">
+                          {vendorAssignments.slice(0, 3).map((assignment) => (
+                            <div key={assignment.id} className="text-sm text-gray-600 flex justify-between bg-white p-2 rounded hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-colors">
+                              <span className="hover:text-white transition-colors">
+                                {assignment.date} • {assignment.startTime}-{assignment.endTime}
+                              </span>
+                              <span className="text-blue-600 font-medium hover:text-white transition-colors">{assignment.role}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-gray-500 text-center py-4">No vendors found. Add vendors to get started.</p>
+              )}
             </div>
           </div>
 
@@ -347,55 +313,59 @@ function Dashboard({ vendors = [], staff = [], assignments = [], onGenerateSched
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <h3 className="text-xl font-bold text-black mb-4">GPS Time Clock</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {assignmentsToUse.map((assignment) => (
-                <div key={assignment.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="font-semibold text-black-600 text-sm hover:text-white transition-colors">{assignment.staffName}</h4>
-                      <p className="text-black-600 text-xs hover:text-white transition-colors">{assignment.vendorName}</p>
-                      <p className="text-black-500 text-xs hover:text-white transition-colors">{assignment.date} • {assignment.startTime}-{assignment.endTime}</p>
+              {assignments.length > 0 ? (
+                assignments.map((assignment) => (
+                  <div key={assignment.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h4 className="font-semibold text-black-600 text-sm hover:text-white transition-colors">{assignment.staffName}</h4>
+                        <p className="text-black-600 text-xs hover:text-white transition-colors">{assignment.vendorName}</p>
+                        <p className="text-black-500 text-xs hover:text-white transition-colors">{assignment.date} • {assignment.startTime}-{assignment.endTime}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        assignment.status === 'checked-in' ? 'bg-green-100 text-green-800' :
+                        assignment.status === 'checked-out' ? 'bg-gray-100 text-gray-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {assignment.status}
+                      </span>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      assignment.status === 'checked-in' ? 'bg-green-100 text-green-800' :
-                      assignment.status === 'checked-out' ? 'bg-gray-100 text-gray-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {assignment.status}
-                    </span>
-                  </div>
-                  
-                  {assignment.checkInTime && (
-                    <div className="text-xs text-green-600 mb-1">
-                      ✓ Checked in: {assignment.checkInTime}
-                    </div>
-                  )}
-                  
-                  {assignment.checkOutTime && (
-                    <div className="text-xs text-gray-600 mb-1">
-                      ✓ Checked out: {assignment.checkOutTime}
-                    </div>
-                  )}
-                  
-                  <div className="flex gap-2 mt-2">
-                    {!assignment.checkInTime && (
-                      <button
-                        onClick={() => handleCheckIn(assignment.id)}
-                        className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-black transition-colors"
-                      >
-                        Check In
-                      </button>
+                    
+                    {assignment.checkInTime && (
+                      <div className="text-xs text-green-600 mb-1">
+                        ✓ Checked in: {assignment.checkInTime}
+                      </div>
                     )}
-                    {assignment.checkInTime && !assignment.checkOutTime && (
-                      <button
-                        onClick={() => handleCheckOut(assignment.id)}
-                        className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-black transition-colors"
-                      >
-                        Check Out
-                      </button>
+                    
+                    {assignment.checkOutTime && (
+                      <div className="text-xs text-gray-600 mb-1">
+                        ✓ Checked out: {assignment.checkOutTime}
+                      </div>
                     )}
+                    
+                    <div className="flex gap-2 mt-2">
+                      {assignment.status === 'scheduled' && (
+                        <button
+                          onClick={() => handleCheckIn(assignment.id)}
+                          className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-black transition-colors"
+                        >
+                          Check In
+                        </button>
+                      )}
+                      {assignment.status === 'checked-in' && (
+                        <button
+                          onClick={() => handleCheckOut(assignment.id)}
+                          className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-black transition-colors"
+                        >
+                          Check Out
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No assignments today. Generate a schedule to get started.</p>
+              )}
             </div>
           </div>
         </div>
@@ -404,26 +374,108 @@ function Dashboard({ vendors = [], staff = [], assignments = [], onGenerateSched
         <div className="mt-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <h3 className="text-xl font-bold text-black mb-4">Staff Availability</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {staffToUse.map((staffMember) => (
-              <div key={staffMember.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-semibold text-black-600 hover:text-white transition-colors">{staffMember.name}</h4>
-                    <p className="text-black-600 text-sm hover:text-white transition-colors">{staffMember.role}</p>
-                    <p className="text-black-500 text-xs hover:text-white transition-colors">{staffMember.phone}</p>
+            {staff.length > 0 ? (
+              staff.map((staffMember) => (
+                <div key={staffMember.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-semibold text-black-600 hover:text-white transition-colors">{staffMember.name}</h4>
+                      <p className="text-black-600 text-sm hover:text-white transition-colors">
+                        {staffMember.skills && staffMember.skills.length > 0 ? staffMember.skills.join(', ') : 'No skills listed'}
+                      </p>
+                      <p className="text-black-500 text-xs hover:text-white transition-colors">{staffMember.phone}</p>
+                      <p className="text-black-500 text-xs hover:text-white transition-colors">
+                        Max: {staffMember.max_hours_per_week || 40}h/week • Current: {staffMember.current_hours || 0}h
+                      </p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      staffMember.status === 'available' ? 'bg-green-100 text-green-800' :
+                      staffMember.status === 'unavailable' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {staffMember.status}
+                    </span>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    staffMember.status === 'available' ? 'bg-green-100 text-green-800' :
-                    staffMember.status === 'on-assignment' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {staffMember.status}
-                  </span>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-4 col-span-3">No staff members found. Add staff to get started.</p>
+            )}
           </div>
         </div>
+
+        {/* Staff Applications from Managers */}
+        {isAdmin() && (
+          <div className="mt-8 bg-white border border-purple-200 rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <FileText className="w-5 h-5 text-purple-600" />
+              </div>
+              <h3 className="text-xl font-bold text-black">Staff Requests from Managers</h3>
+              {applications.filter(a => a.status === 'pending').length > 0 && (
+                <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
+                  {applications.filter(a => a.status === 'pending').length} pending
+                </span>
+              )}
+            </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {applications.length > 0 ? (
+                applications.map((app) => (
+                  <div key={app.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:shadow-md transition">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${
+                            app.status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                            app.status === 'approved' ? 'bg-green-100 text-green-800 border-green-200' :
+                            'bg-red-100 text-red-800 border-red-200'
+                          }`}>
+                            {app.status === 'pending' ? <Clock className="w-3 h-3" /> :
+                             app.status === 'approved' ? <CheckCircle className="w-3 h-3" /> :
+                             <XCircle className="w-3 h-3" />}
+                            {app.status}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {app.eventDate && `Event: ${app.eventDate}`}
+                          </span>
+                        </div>
+                        <p className="font-medium text-gray-900">
+                          <span className="text-purple-600">{app.managerName}</span> requests {app.staffCount} staff
+                          {app.vendorName && (
+                            <span className="ml-2 text-sm text-gray-500">
+                              for <span className="font-medium text-indigo-600">{app.vendorName}</span>
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-gray-600 text-sm mt-1">{app.description}</p>
+                      </div>
+                      {app.status === 'pending' && (
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleApproveApplication(app.id)}
+                            className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition"
+                            title="Approve"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRejectApplication(app.id)}
+                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition"
+                            title="Reject"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No staff requests from managers yet.</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Schedule Modal */}
@@ -489,45 +541,45 @@ function Dashboard({ vendors = [], staff = [], assignments = [], onGenerateSched
               {/* Schedule List */}
               <div className="grid gap-4">
                 <h3 className="text-lg font-semibold text-black">Scheduled Shifts</h3>
-                {generatedSchedule.map((shift) => (
-                  <div key={shift.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <User className="w-5 h-5 text-blue-600" />
+                {generatedSchedule.length > 0 ? (
+                  generatedSchedule.map((shift) => (
+                    <div key={shift.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:bg-gradient-to-r hover:from-gray-600 hover:to-purple-400 hover:text-white transition-all hover:shadow-md">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <User className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-black hover:text-white transition-colors">{shift.staffName}</h3>
+                            <p className="text-gray-600 text-sm hover:text-white transition-colors">{shift.role}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-black hover:text-white transition-colors">{shift.staffName}</h3>
-                          <p className="text-gray-600 text-sm hover:text-white transition-colors">{shift.role}</p>
+                        <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
+                          {shift.status}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div className="flex items-center gap-2 text-gray-600 hover:text-white transition-colors">
+                          <Calendar className="w-4 h-4" />
+                          <span>{shift.date}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-600 hover:text-white transition-colors">
+                          <Clock className="w-4 h-4" />
+                          <span>{shift.startTime} - {shift.endTime}</span>
                         </div>
                       </div>
-                      <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
-                        {shift.status}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                      <div className="flex items-center gap-2 text-gray-600 hover:text-white transition-colors">
-                        <Calendar className="w-4 h-4" />
-                        <span>{shift.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600 hover:text-white transition-colors">
-                        <Clock className="w-4 h-4" />
-                        <span>{shift.startTime} - {shift.endTime}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600 hover:text-white transition-colors">
-                        <MapPin className="w-4 h-4" />
-                        <span>{shift.location}</span>
+                      
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-sm text-gray-600 hover:text-white transition-colors">
+                          <span className="font-medium text-black hover:text-white transition-colors">Vendor:</span> {shift.vendorName}
+                        </p>
                       </div>
                     </div>
-                    
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <p className="text-sm text-gray-600 hover:text-white transition-colors">
-                        <span className="font-medium text-black hover:text-white transition-colors">Vendor:</span> {shift.vendorName}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No schedule generated yet.</p>
+                )}
               </div>
               
               <div className="mt-6 flex gap-3">
